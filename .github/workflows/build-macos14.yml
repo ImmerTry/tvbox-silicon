@@ -40,7 +40,7 @@ concurrency:
 jobs:
   build-macos14:
     name: macOS 14 universal (unsigned)
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 120
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -53,9 +53,14 @@ jobs:
       # The repo needs Swift 6.2 tools: colorfulx 6.2.1 declares Swift
       # tools version 6.2.0, which Xcode 16.x cannot resolve (SPM fails
       # with "incompatible tools version (6.2.0)"). It also needs an SDK
-      # that contains libhvf (macOS 15.4+, i.e. Xcode 16.3+). The macos-15
-      # image ships Xcode 26.0.1-26.3; pick the newest 26.x installed
+      # that contains libhvf (macOS 15.4+, i.e. Xcode 16.3+). The macos-26
+      # image ships Xcode 26.0.1-26.6; pick the newest 26.x installed
       # instead of assuming a fixed path, and fail loudly if there is none.
+      # (Was macos-15 until 2026-11-20: its arm64 runner pool had no
+      # capacity that night — Run #3 attempts 1 and 2 both sat queued
+      # ~15 min and were cancelled by GitHub with "job was not acquired
+      # by Runner of type hosted", no step ever ran. macos-26 is a
+      # different runner pool; deployment target stays 14.0.)
       - name: Select Xcode 26
         run: |
           set -euo pipefail
