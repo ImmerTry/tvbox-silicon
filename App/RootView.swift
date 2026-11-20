@@ -266,7 +266,7 @@ struct RootView: View {
 
     @ViewBuilder private var tabView: some View {
         @Bindable var store = store
-        if #available(iOS 18, tvOS 26, *) {
+        if #available(iOS 18, macOS 15, tvOS 26, *) {
             TabView(selection: $store.section) {
                 ForEach(tabs) { item in
                     // The page is the section's own: iOS 18 keeps a tab's page by its place in the bar, so a section the
@@ -280,7 +280,7 @@ struct RootView: View {
             }
             .tabViewStyle(.sidebarAdaptable)
         } else {
-            // tvOS 17 and iOS 17 have no Tab or sidebar: the classic tab bar, along the top on Apple TV and at the
+            // tvOS 17, iOS 17 and macOS 14 have no Tab or sidebar: the classic tab bar, along the top on Apple TV and at the
             // bottom on iPad too. tvOS 18 gets it as well: its sidebar, which our sections are too many to fit in a bar
             // along the top, can't be reached from a page: once focus left it, neither Back nor Left brought it back, so
             // the viewer was stuck in that section (#1315). tvOS 26 fixed that.

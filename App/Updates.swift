@@ -532,14 +532,14 @@ private struct ReleaseBackdrop: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 30, paused: !animated)) { context in
             let drift = Float(sin(context.date.timeIntervalSinceReferenceDate * 0.3)) * 0.12
-            if #available(iOS 18, tvOS 18, *) {
+            if #available(iOS 18, macOS 15, tvOS 18, *) {
                 MeshGradient(width: 3, height: 3, points: [
                     [0, 0], [0.5, 0], [1, 0],
                     [0, 0.5], [0.5 + drift, 0.42 - drift / 2], [1, 0.5],
                     [0, 1], [0.5, 1], [1, 1],
                 ], colors: Self.top + Self.middle + [.black, .black, .black])
             } else {
-                // No mesh gradients before iOS 18 and tvOS 18: the top row's colours drift sideways over the middle row's.
+                // No mesh gradients before iOS 18, macOS 15 and tvOS 18: the top row's colours drift sideways over the middle row's.
                 LinearGradient(colors: Self.top, startPoint: UnitPoint(x: CGFloat(drift), y: 0), endPoint: UnitPoint(x: 1 + CGFloat(drift), y: 0))
                     .mask { LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.6)) }
                     .background { LinearGradient(colors: Self.middle, startPoint: .leading, endPoint: .trailing) }

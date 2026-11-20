@@ -387,7 +387,7 @@ struct MusicMacNowPlaying: View {
     /// The cover's colour, then the cover itself blurred to a wash over it.
     private func backdrop(_ music: MusicPlaybackSession) -> some View {
         ZStack {
-            LinearGradient(colors: [tint.mix(with: .black, by: 0.12), tint.mix(with: .black, by: 0.5)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [tint.blend(with: .black, by: 0.12), tint.blend(with: .black, by: 0.5)], startPoint: .topLeading, endPoint: .bottomTrailing)
             if let artwork = music.track?.artwork {
                 // Blurred small and drawn once, then scaled up: a full-window blur redrawn every
                 // frame made opening the player and scrolling the lyrics stutter.

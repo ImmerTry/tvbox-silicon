@@ -1491,7 +1491,7 @@ struct ScrollStrip<Content: View>: View {
     }
 
     @ViewBuilder private func measured(_ scrollView: some View) -> some View {
-        if #available(iOS 18, *) {
+        if #available(iOS 18, macOS 15, *) {
             scrollView.onScrollGeometryChange(for: Metrics.self) { geometry in
                 Metrics(offset: geometry.contentOffset.x + geometry.contentInsets.leading,
                         viewport: geometry.containerSize.width,

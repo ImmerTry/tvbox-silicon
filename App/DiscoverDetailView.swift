@@ -1302,7 +1302,7 @@ extension DiscoverDetailView {
 struct DiscoverTVScrolled: ViewModifier {
     @Binding var scrolled: Bool
     @ViewBuilder func body(content: Content) -> some View {
-        if #available(tvOS 18, *) {
+        if #available(tvOS 18, macOS 15, *) {
             content.onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y > 120 } action: { _, value in scrolled = value }
         } else { content }
     }

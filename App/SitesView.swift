@@ -4828,9 +4828,14 @@ struct MacHeroSynopsis: View {
 
 extension View {
     /// Tells the page when its hero has scrolled away, so the toolbar can take the title.
-    func macHeroScroll(heroHeight: CGFloat, past: Binding<Bool>) -> some View {
-        onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > heroHeight - 140 } action: { _, value in
-            past.wrappedValue = value
+    /// macOS 14 has no scroll-geometry reporting, so the toolbar keeps its untitled state there.
+    @ViewBuilder func macHeroScroll(heroHeight: CGFloat, past: Binding<Bool>) -> some View {
+        if #available(macOS 15, *) {
+            onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > heroHeight - 140 } action: { _, value in
+                past.wrappedValue = value
+            }
+        } else {
+            self
         }
     }
 }

@@ -198,12 +198,12 @@ extension View {
     }
     #endif
 
-    // iOS 17 and tvOS 17 stand-ins for iOS 18 and tvOS 18 APIs. macOS 15 always takes the first branch.
+    // iOS 17 and tvOS 17 stand-ins for iOS 18 and tvOS 18 APIs. macOS 14 takes the fallback branch, macOS 15 the first.
 
     /// Calls `action` when someone starts scrolling by hand. Before iOS 18 there is no scroll phase,
     /// so a drag on the scroll view stands in.
     @ViewBuilder func onScrollByHand(_ action: @escaping () -> Void) -> some View {
-        if #available(iOS 18, tvOS 18, *) {
+        if #available(iOS 18, macOS 15, tvOS 18, *) {
             onScrollPhaseChange { _, phase in if phase == .interacting { action() } }
         } else {
             #if os(tvOS)
@@ -217,7 +217,7 @@ extension View {
     /// `onScrollVisibilityChange`; before iOS 18 and tvOS 18 the visible share comes from the view's bounds
     /// against its scroll view's.
     @ViewBuilder func onScrolledIntoView(threshold: Double, _ action: @escaping (Bool) -> Void) -> some View {
-        if #available(iOS 18, tvOS 18, *) {
+        if #available(iOS 18, macOS 15, tvOS 18, *) {
             onScrollVisibilityChange(threshold: threshold, action)
         } else {
             onGeometryChange(for: Bool.self) { geometry in
@@ -232,7 +232,7 @@ extension View {
     #if !os(tvOS)
     /// `searchFocused`; before iOS 18 a search field can't be focused from code, so it keeps the viewer's focus.
     @ViewBuilder func searchFieldFocused(_ focused: FocusState<Bool>.Binding) -> some View {
-        if #available(iOS 18, *) { searchFocused(focused) } else { self }
+        if #available(iOS 18, macOS 15, *) { searchFocused(focused) } else { self }
     }
     #endif
 
@@ -249,7 +249,7 @@ extension View {
 
     /// The breathing symbol effect; iOS 17 and tvOS 17 have no breathe, so the symbol pulses instead.
     @ViewBuilder func breathingSymbol() -> some View {
-        if #available(iOS 18, tvOS 18, *) {
+        if #available(iOS 18, macOS 15, tvOS 18, *) {
             symbolEffect(.breathe, options: .repeat(.periodic(delay: 2.5)))
         } else {
             symbolEffect(.pulse, options: .repeating.speed(0.4))
@@ -260,7 +260,7 @@ extension View {
 extension Color {
     /// `mix(with:by:)`; before iOS 18 and tvOS 18 a plain blend in sRGB.
     func blend(with other: Color, by fraction: Double) -> Color {
-        if #available(iOS 18, tvOS 18, *) { return mix(with: other, by: fraction) }
+        if #available(iOS 18, macOS 15, tvOS 18, *) { return mix(with: other, by: fraction) }
         let environment = EnvironmentValues()
         let from = resolve(in: environment), to = other.resolve(in: environment)
         // Resolved components are linear; blending gamma-encoded values looks closer to mix's perceptual default.
