@@ -1,0 +1,259 @@
+# Build Yingxia (tvbox-silicon) for macOS 14, unsigned.
+#
+# Purpose: verify the macos14 deployment-target patch actually compiles and
+# produces an app that can launch on macOS 14. The one thing a plain
+# "it compiled" does NOT prove is the libhvf weak link, so this workflow
+# fails the job if libhvf is strongly linked (see the "Check libhvf weak
+# link" step). libhvf only exists from macOS 15.4; a strong link makes dyld
+# refuse to launch the app on macOS 14.
+#
+# Triggers:
+#   - Manually: Actions tab -> "Build macOS 14 (unsigned)" -> Run workflow.
+#   - Automatically: any push to the macos14 branch.
+#
+# What it does NOT do: no signing, no notarization, no DMG, no Sparkle
+# appcast, no TestFlight, no push, no release. The artifact is an unsigned
+# .app in a zip; on a real Mac open it with right-click -> Open (first run
+# only) or `xattr -cr Yingxia.app` if Gatekeeper blocks it.
+#
+# Known costs: a cold run builds FFmpeg (~5-10 min), libass (~3 min) and
+# the three spider hosts, then a universal Release build. Expect roughly
+# 30-60 minutes cold, much less on reruns thanks to the caches below.
+# The vendor scripts already cache under ~/Library/Caches/tvbox-* keyed by
+# recipe, so the actions/cache steps just make that cache survive between
+# runner instances (GitHub runners are ephemeral).
+
+name: Build macOS 14 (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [macos14]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-macos14
+  cancel-in-progress: false
+
+jobs:
+  build-macos14:
+    name: macOS 14 universal (unsigned)
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # --- Toolchain -------------------------------------------------------
+      # The repo needs Swift 6.0 (SWIFT_VERSION in project.yml) and an SDK
+      # that contains libhvf (macOS 15.4+, i.e. Xcode 16.3+). The macos-15
+      # image ships several Xcode 16.x; pick the newest 16.x installed
+      # instead of assuming a fixed path, and fail loudly if there is none.
+      - name: Select Xcode 16
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::No Xcode 16.x found on this runner; the build needs Xcode 16+ (Swift 6, macOS 15.4 SDK for libhvf)."
+            exit 1
+          fi
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      # JDK 19 for Scripts/build-java-host.sh (it uses $JAVA_HOME, falling
+      # back to /usr/libexec/java_home -v 19). Maven comes from the runner
+      # image; install it via Homebrew if it ever goes missing.
+      - name: Set up JDK 19
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '19'
+
+      - name: Ensure Maven and uv are available
+        run: |
+          set -euo pipefail
+          command -v mvn >/dev/null || brew install maven
+          mvn -version
+          command -v uv >/dev/null || brew install uv
+          uv --version
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen --version
+
+      # --- Caches ----------------------------------------------------------
+      # The vendor scripts keep their builds in these dirs and skip
+      # rebuilding when the recipe is unchanged, so restoring them is what
+      # makes reruns fast. Keys include the script contents: any recipe
+      # change busts the cache, which is exactly when a rebuild is wanted.
+      - name: Cache vendor builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/tvbox-ffmpeg
+            ~/Library/Caches/tvbox-libass
+            ~/Library/Caches/tvbox-node
+          key: tvbox-vendor-${{ runner.os }}-${{ hashFiles('Scripts/build-apple-ffmpeg.sh', 'Scripts/build-apple-libass.sh', 'Scripts/build-script-host.sh') }}
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: tvbox-maven-${{ runner.os }}-${{ hashFiles('Runtime/JavaHost/pom.xml') }}
+
+      # --- Spider hosts (required before xcodebuild) -----------------------
+      # project.yml lists build/JavaHost, build/ScriptHost and
+      # build/PythonHost as folder resources of the TVBox-macOS target, and
+      # its pre-build script runs Scripts/check-java-host.sh on
+      # build/JavaHost/host.jar. If these directories are missing, xcodebuild
+      # fails in the pre-build phase before compiling anything, so they are
+      # built here even though this is "just" a compile check. They are not
+      # committed (build/ is gitignored). See Docs/DEVELOPMENT.md "Prepare
+      # the project". build-universal-hosts.sh is intentionally NOT used:
+      # it is the release step that thins a universal build into per-arch
+      # packages; the plain host scripts already produce both architectures
+      # where the app needs them.
+      - name: Build spider hosts (Java, Script, Python)
+        run: |
+          set -euo pipefail
+          Scripts/build-java-host.sh
+          Scripts/build-script-host.sh
+          Scripts/build-python-host.sh
+
+      # --- Vendor libraries ------------------------------------------------
+      # Vendor/FFmpeg/FFmpeg.xcframework and Vendor/LibASS/LibASS.xcframework
+      # are symlinks to ../../build/FFmpeg/... and ../../build/LibASS/...
+      # (build/ is gitignored), so a fresh checkout has dangling links until
+      # these scripts run. Both scripts build every platform slice
+      # (macOS arm64+x86_64, iOS, iOS-sim, tvOS, tvOS-sim) and assemble the
+      # xcframeworks. libass builds FreeType with -Dhvf=enabled, which is
+      # why the libhvf weak-link check below matters.
+      - name: Build vendor libraries (FFmpeg, libass)
+        run: |
+          set -euo pipefail
+          Scripts/build-apple-ffmpeg.sh
+          Scripts/build-apple-libass.sh
+
+      - name: Verify vendor xcframework links resolve
+        run: |
+          set -euo pipefail
+          for f in Vendor/FFmpeg/FFmpeg.xcframework/Info.plist Vendor/LibASS/LibASS.xcframework/Info.plist; do
+            test -f "$f" || { echo "::error::Missing $f — a vendor build did not produce its xcframework."; exit 1; }
+            echo "OK: $f"
+          done
+          ls -l Vendor/FFmpeg/ Vendor/LibASS/ | grep xcframework
+
+      # --- Project generation ----------------------------------------------
+      - name: Regenerate project with XcodeGen
+        run: |
+          set -euo pipefail
+          xcodegen generate
+
+      # Guard against a stale pbxproj: the patch's whole point is
+      # MACOSX_DEPLOYMENT_TARGET 14.0, so fail here (cheaply) instead of
+      # discovering it from a successful 15.0 build.
+      - name: Verify macOS deployment target is 14.0
+        run: |
+          set -euo pipefail
+          grep -q "MACOSX_DEPLOYMENT_TARGET = 14.0" TVBox.xcodeproj/project.pbxproj \
+            || { echo "::error::project.pbxproj does not contain MACOSX_DEPLOYMENT_TARGET = 14.0 — the macos14 patch was not applied to this branch."; exit 1; }
+          grep -A3 "deploymentTarget:" project.yml
+          echo "OK: deployment target is macOS 14.0"
+
+      # --- Build ------------------------------------------------------------
+      # Unsigned, universal (arm64 + x86_64), Release. CODE_SIGNING_ALLOWED=NO
+      # is the form Docs/DEVELOPMENT.md documents for a command-line build;
+      # package-mac-release.sh instead signs with an identity, which CI
+      # must not do (no Developer ID here). The log is kept so a failure can
+      # be diagnosed without rerunning the whole job.
+      - name: Build TVBox-macOS (unsigned, universal, Release)
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild -project TVBox.xcodeproj -scheme TVBox-macOS \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData-mac14 \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build/xcodebuild-macos14.log
+
+      # Existing guard from the repo: a back-deployed Foundation Date <=/>=
+      # symbol crashes early 27.2 betas at launch. It takes the app binary.
+      - name: Check weak imports (existing repo guard)
+        run: |
+          set -euo pipefail
+          APP="build/DerivedData-mac14/Build/Products/Release/TVBox-macOS.app"
+          EXEC=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$APP/Contents/Info.plist")
+          Scripts/check-weak-imports.sh "$APP/Contents/MacOS/$EXEC"
+
+      # --- libhvf weak-link check (the macOS 14 launch-or-crash gate) -----
+      # Package.swift links TVMedia against libhvf (.linkedLibrary("hvf")),
+      # and libass's FreeType is built with -Dhvf=enabled. libhvf is new in
+      # macOS 15.4, so on macOS 14 dyld can only load the app if that import
+      # is weak (LC_LOAD_WEAK_DYLIB). The linker normally emits a weak load
+      # command for a library newer than the deployment target, but that is
+      # an assumption until it is read back from the built binary — hence
+      # this step, which fails the job with an explicit message instead of
+      # shipping an app that dies at launch on 14.
+      # otool -l prints each load command as: "cmd <TYPE>" two lines above
+      # its "name ... libhvf.dylib" line, so grep -B2 on the name line sees
+      # the command type.
+      - name: Check libhvf weak link
+        run: |
+          set -euo pipefail
+          APP="build/DerivedData-mac14/Build/Products/Release/TVBox-macOS.app"
+          EXEC=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$APP/Contents/Info.plist")
+          BIN="$APP/Contents/MacOS/$EXEC"
+          test -x "$BIN" || { echo "::error::Built binary not found: $BIN"; exit 1; }
+          echo "== libhvf load commands (otool -l) =="
+          otool -l "$BIN" | grep -B2 -A1 "libhvf" || echo "(no libhvf load command found)"
+          echo "== dyld imports mentioning hvf =="
+          xcrun dyld_info -imports "$BIN" 2>/dev/null | grep -i hvf || echo "(dyld_info lists no hvf imports)"
+          if ! otool -l "$BIN" | grep -qi "libhvf"; then
+            echo "::error::libhvf is not linked into $EXEC at all — expected a weak link (LC_LOAD_WEAK_DYLIB). Check Package.swift TVMedia .linkedLibrary(\"hvf\") and the libass FreeType build (-Dhvf=enabled)."
+            exit 1
+          fi
+          if otool -l "$BIN" | grep -B2 "libhvf" | grep -q "LC_LOAD_WEAK_DYLIB"; then
+            echo "OK: libhvf is weak-linked (LC_LOAD_WEAK_DYLIB) — macOS 14 can launch without it."
+          else
+            echo "::error::libhvf is STRONGLY linked (LC_LOAD_DYLIB, not LC_LOAD_WEAK_DYLIB) in $EXEC. On macOS 14 dyld will refuse to launch the app because libhvf only exists from macOS 15.4. Fix the link (make it weak) before shipping this build."
+            exit 1
+          fi
+
+      # --- Package -----------------------------------------------------------
+      - name: Zip the unsigned app
+        run: |
+          set -euo pipefail
+          APP="build/DerivedData-mac14/Build/Products/Release/TVBox-macOS.app"
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
+          ZIP="Yingxia-${VERSION}-macos14-unsigned.zip"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          ditto -c -k --keepParent "$APP" "$ZIP"
+          ls -lh "$ZIP"
+
+      - name: Upload unsigned app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yingxia-macos14-unsigned
+          path: ${{ env.ZIP }}
+          retention-days: 30
+
+      # If the build itself failed, the log is the first thing to read; keep
+      # it as an artifact instead of making anyone rerun the job to see it.
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-macos14-log
+          path: build/xcodebuild-macos14.log
+          retention-days: 14
