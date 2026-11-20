@@ -441,7 +441,11 @@ final class LoadedLivePlugin: @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = (options["method"]?.string ?? "GET").uppercased()
         let inner = outer["request"]?.object ?? [:]
-        let seconds = inner["timeoutMs"]?.double.map { $0 / 1000 } ?? inner["timeout"]?.double ?? outer["timeoutMs"]?.double.map { $0 / 1000 } ?? outer["timeout"]?.double ?? 20
+        let innerTimeoutMs = inner["timeoutMs"]?.double.map { $0 / 1000 }
+        let innerTimeout = inner["timeout"]?.double
+        let outerTimeoutMs = outer["timeoutMs"]?.double.map { $0 / 1000 }
+        let outerTimeout = outer["timeout"]?.double
+        let seconds = innerTimeoutMs ?? innerTimeout ?? outerTimeoutMs ?? outerTimeout ?? 20
         request.timeoutInterval = min(120, max(0.1, seconds))
         var headers: [String: String] = [:]
         for (key, value) in options["headers"]?.object ?? [:] { if let text = value.string ?? value.double.map({ String(format: "%g", $0) }) { headers[key] = text } }
