@@ -50,17 +50,19 @@ jobs:
         uses: actions/checkout@v4
 
       # --- Toolchain -------------------------------------------------------
-      # The repo needs Swift 6.0 (SWIFT_VERSION in project.yml) and an SDK
+      # The repo needs Swift 6.2 tools: colorfulx 6.2.1 declares Swift
+      # tools version 6.2.0, which Xcode 16.x cannot resolve (SPM fails
+      # with "incompatible tools version (6.2.0)"). It also needs an SDK
       # that contains libhvf (macOS 15.4+, i.e. Xcode 16.3+). The macos-15
-      # image ships several Xcode 16.x; pick the newest 16.x installed
+      # image ships Xcode 26.0.1-26.3; pick the newest 26.x installed
       # instead of assuming a fixed path, and fail loudly if there is none.
-      - name: Select Xcode 16
+      - name: Select Xcode 26
         run: |
           set -euo pipefail
           ls -d /Applications/Xcode*.app
-          XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           if [ -z "$XCODE" ]; then
-            echo "::error::No Xcode 16.x found on this runner; the build needs Xcode 16+ (Swift 6, macOS 15.4 SDK for libhvf)."
+            echo "::error::No Xcode 26.x found on this runner; the build needs Xcode 26+ (Swift 6.2 tools for colorfulx 6.2.1, macOS 15.4 SDK for libhvf)."
             exit 1
           fi
           echo "Using $XCODE"
