@@ -989,31 +989,33 @@ private final class EnhancementPipeline: EnhancementEngine, @unchecked Sendable 
 
     /// The SDK marks the size query 27.0, but iOS 27.0 lacks its Swift wrappers: calling them jumped to address 0
     /// (crash report e8d4f2a2b133). The Objective-C methods are asked for by selector instead, once; 0 means unsupported.
-    /// The MacOSX26.5 SDK has no Swift wrapper for them at all, so they are called through `NSInvocation`,
-    /// with the argument and return types read from each method's own signature (a float or a double
-    /// factor both work); nil means unsupported, and the caller falls back to the 1280x720 cap.
+    /// The MacOSX26.5 SDK has no Swift wrapper for them at all, and `NSInvocation`/`NSMethodSignature`
+    /// are unavailable in Swift, so the methods are called through their IMP, with the argument and
+    /// return types read from the method itself (`method_getArgumentType` / `method_getReturnType`:
+    /// a float or a double factor both work); nil means unsupported, and the caller falls back
+    /// to the 1280x720 cap.
     private static func queryInteger(_ selector: Selector, argument: CGFloat) -> Int? {
         let type = VTLowLatencyFrameInterpolationConfiguration.self
         guard type.responds(to: selector),
-              let method = class_getClassMethod(type, selector),
-              let encoding = method_getTypeEncoding(method),
-              let signature = NSMethodSignature(objCTypes: encoding),
-              signature.numberOfArguments == 3
+              let method = class_getClassMethod(type, selector)
         else { return nil }
-        let returnType = String(cString: signature.getReturnType())
+        var typeBuffer = [CChar](repeating: 0, count: 8)
+        method_getReturnType(method, &typeBuffer, typeBuffer.count)
+        let returnType = String(cString: typeBuffer)
         guard returnType == "q" || returnType == "l" || returnType == "i" else { return nil }
-        let invocation = NSInvocation(methodSignature: signature)
-        invocation.target = type
-        invocation.selector = selector
-        switch String(cString: signature.getArgumentType(at: 2)) {
-        case "f": var value = Float(argument); invocation.setArgument(&value, at: 2)
-        case "d": var value = Double(argument); invocation.setArgument(&value, at: 2)
-        default: return nil
+        method_getArgumentType(method, 2, &typeBuffer, typeBuffer.count)
+        let argumentType = String(cString: typeBuffer)
+        let imp = method_getImplementation(method)
+        switch argumentType {
+        case "f":
+            typealias Fn = @convention(c) (AnyClass, Selector, Float) -> Int
+            return unsafeBitCast(imp, to: Fn.self)(type, selector, Float(argument))
+        case "d":
+            typealias Fn = @convention(c) (AnyClass, Selector, Double) -> Int
+            return unsafeBitCast(imp, to: Fn.self)(type, selector, Double(argument))
+        default:
+            return nil
         }
-        invocation.invoke()
-        var result = 0
-        invocation.getReturnValue(&result)
-        return result
     }
 
     private static let interpolationLimit: (side: Int, pixels: Int)? = {
