@@ -181,6 +181,14 @@ struct LivePluginOfferSection: View {
     /// Icons of the plugins not installed yet, read from their ZIPs.
     @State private var previews: [String: URL] = [:]
 
+    /// The private `@State` members make the memberwise initializer private;
+    /// callers in other views need this one.
+    init(title: String, address: URL, entries: [LivePlugins.Entry]) {
+        self.title = title
+        self.address = address
+        self.entries = entries
+    }
+
     var body: some View {
         content
             #if !os(tvOS)
@@ -249,9 +257,11 @@ struct LivePluginOfferSection: View {
         }
     }
 
-    private enum State { case available, update, installed }
+    /// Named `EntryState`, not `State`: a nested type called `State` shadows SwiftUI's `@State`
+    /// property wrapper, so the `@State` attributes above stop resolving (Xcode 26.6).
+    private enum EntryState { case available, update, installed }
 
-    private func state(_ entry: LivePlugins.Entry) -> State {
+    private func state(_ entry: LivePlugins.Entry) -> EntryState {
         guard let current = LivePlugins.shared.installed(entry.pluginId) else { return .available }
         return current.version == entry.version && (entry.sha256.isEmpty || entry.sha256 == current.sha256) ? .installed : .update
     }

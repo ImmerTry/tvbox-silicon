@@ -42,7 +42,7 @@ struct MusicDownloadsView: View {
         } else {
             page.screenTitle(Self.title)
                 #if os(macOS)
-                .toolbar(removing: .title)
+                .toolbarWithoutTitle()
                 #endif
         }
     }
@@ -204,7 +204,7 @@ struct MusicDownloadedCollectionView: View {
             .screenBackdrop()
             .screenTitle(collection.title)
             #if os(macOS)
-            .toolbar(removing: .title)
+            .toolbarWithoutTitle()
             #endif
             .musicPlayerInset()
             #if os(tvOS)

@@ -13,6 +13,13 @@ struct WatchNowPhonePage: View {
     /// Scrolled past the hero: the bar is over the app's own background again.
     @State private var pastHero = false
 
+    /// The private `openSection` and `@State` members make the memberwise initializer private;
+    /// callers in other files need this one.
+    init(config: Subscription, sections: Set<HomeSection>) {
+        self.config = config
+        self.sections = sections
+    }
+
     /// The newest titles not finished yet, for the hero.
     private var upNext: [PlaybackHistoryEntry] {
         guard sections.contains(.upNext) else { return [] }

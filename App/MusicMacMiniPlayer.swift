@@ -42,7 +42,8 @@ struct MusicMacMiniPlayer: View {
         .padding(10).padding(.trailing, 2)
         .frame(width: 340, height: 76)
         .contentShape(.rect)
-        .gesture(WindowDragGesture())
+        // `WindowDragGesture` is macOS 15+: on macOS 14 the window drags by its title bar instead.
+        .windowDragGesture()
         .glassSurface(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(alignment: .topLeading) { if hovering { close } }
         .onHover { hovering = $0 }

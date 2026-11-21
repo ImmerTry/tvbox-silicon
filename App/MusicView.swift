@@ -532,7 +532,7 @@ struct MusicCollectionView: View {
         .screenTitle(collection.title)
         #if os(macOS)
         // The header already names it in large type.
-        .toolbar(removing: .title)
+        .toolbarWithoutTitle()
         #endif
         .musicPlayerInset()
         #if os(tvOS)
@@ -655,7 +655,7 @@ struct MusicLikedView: View {
         .screenTitle(Self.title)
         #if os(macOS)
         // The header names it in large type, as on the other Music pages.
-        .toolbar(removing: .title)
+        .toolbarWithoutTitle()
         #endif
         .musicPlayerInset()
         #if os(tvOS)

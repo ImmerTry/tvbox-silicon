@@ -201,7 +201,7 @@ struct MusicCollectionsPage: View {
         .screenBackdrop()
         #if os(macOS)
         .navigationTitle(title)
-        .toolbar(removing: .title)
+        .toolbarWithoutTitle()
         #else
         .screenTitle(title)
         .musicPlayerInset()
@@ -440,7 +440,7 @@ struct MusicSongsPage: View {
         }
         .screenBackdrop()
         .navigationTitle(title)
-        .toolbar(removing: .title)
+        .toolbarWithoutTitle()
     }
 }
 

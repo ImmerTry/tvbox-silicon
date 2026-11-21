@@ -1399,7 +1399,50 @@ struct ScrollStrip<Content: View>: View {
     var arrowCenter: CGFloat?
     let content: Content
     #if os(macOS)
-    @State private var position = ScrollPosition(idType: String.self)
+    /// The macOS 15 scroll position, boxed as `Any`: `ScrollPosition` itself is macOS 15-only, so it
+    /// cannot be a stored property on a macOS 14 target. The binding and the `scrollPositionTo`
+    /// helpers below bridge it, so macOS 15 behaves exactly as before; on macOS 14 the box stays
+    /// empty and the strip is a plain scroll view (its arrows and drag scrolling need the position).
+    @State private var positionBox: Any? = nil
+
+    /// A binding to the boxed scroll position, macOS 15 only.
+    @available(macOS 15, *)
+    private var positionBinding: Binding<ScrollPosition> {
+        Binding(
+            get: { (self.positionBox as? ScrollPosition) ?? ScrollPosition(idType: String.self) },
+            set: { self.positionBox = $0 }
+        )
+    }
+
+    /// Scrolls the strip to a point (macOS 15 only).
+    @available(macOS 15, *)
+    private func scrollPositionTo(x: CGFloat) {
+        var position = (positionBox as? ScrollPosition) ?? ScrollPosition(idType: String.self)
+        position.scrollTo(x: x)
+        positionBox = position
+    }
+
+    /// Scrolls the strip to an item id (macOS 15 only).
+    @available(macOS 15, *)
+    private func scrollPositionTo(id: String) {
+        var position = (positionBox as? ScrollPosition) ?? ScrollPosition(idType: String.self)
+        position.scrollTo(id: id, anchor: .center)
+        positionBox = position
+    }
+
+    /// Binds the scroll view's position on macOS 15; on macOS 14 there is no `ScrollPosition`.
+    @ViewBuilder private func positionScrollView(_ scrollView: some View) -> some View {
+        if #available(macOS 15, *) {
+            scrollView.scrollPosition(positionBinding)
+        } else {
+            scrollView
+        }
+    }
+    #else
+    /// Other platforms scroll by item id through the reader below; there is no position to bind.
+    @ViewBuilder private func positionScrollView(_ scrollView: some View) -> some View {
+        scrollView
+    }
     #endif
     @State private var edges = Edges()
     /// Live geometry and drag state. A plain reference, so updating it never invalidates the view.
@@ -1428,12 +1471,11 @@ struct ScrollStrip<Content: View>: View {
         ScrollViewReader { proxy in
             HStack(spacing: 8) {
                 measured(
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        measuredContent
-                    }
-                    #if os(macOS)
-                    .scrollPosition($position)
-                    #endif
+                    positionScrollView(
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            measuredContent
+                        }
+                    )
                 )
                 .mask {
                     HStack(spacing: 0) {
@@ -1468,7 +1510,11 @@ struct ScrollStrip<Content: View>: View {
             .onAppear {
                 guard let scrollTo else { return }
                 #if os(macOS)
-                position.scrollTo(id: scrollTo, anchor: .center)
+                if #available(macOS 15, *) {
+                    scrollPositionTo(id: scrollTo)
+                } else {
+                    proxy.scrollTo(scrollTo, anchor: .center)
+                }
                 #else
                 proxy.scrollTo(scrollTo, anchor: .center)
                 #endif
@@ -1524,13 +1570,17 @@ struct ScrollStrip<Content: View>: View {
                 let origin = tracking.dragOrigin ?? tracking.metrics.offset
                 tracking.dragOrigin = origin
                 tracking.drag.active = true
-                position.scrollTo(x: tracking.clamp(origin - value.translation.width))
+                if #available(macOS 15, *) {
+                    scrollPositionTo(x: tracking.clamp(origin - value.translation.width))
+                }
             }
             .onEnded { value in
                 let origin = tracking.dragOrigin ?? tracking.metrics.offset
                 tracking.dragOrigin = nil
                 withAnimation(.smooth(duration: 0.45)) {
-                    position.scrollTo(x: tracking.clamp(origin - value.predictedEndTranslation.width))
+                    if #available(macOS 15, *) {
+                        scrollPositionTo(x: tracking.clamp(origin - value.predictedEndTranslation.width))
+                    }
                 }
                 let drag = tracking.drag
                 Task { @MainActor in
@@ -1546,7 +1596,9 @@ struct ScrollStrip<Content: View>: View {
         return Button {
             let step = max(1, tracking.metrics.viewport * 0.8)
             withAnimation(.smooth(duration: 0.3)) {
-                position.scrollTo(x: tracking.clamp(tracking.metrics.offset + (forward ? step : -step)))
+                if #available(macOS 15, *) {
+                    scrollPositionTo(x: tracking.clamp(tracking.metrics.offset + (forward ? step : -step)))
+                }
             }
         } label: {
             Image(systemName: forward ? "chevron.right" : "chevron.left")

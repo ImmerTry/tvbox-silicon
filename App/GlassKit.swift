@@ -172,8 +172,11 @@ extension View {
     @ViewBuilder func artUnderToolbar() -> some View {
         if #available(macOS 26, *) {
             toolbarBackgroundVisibility(.hidden, for: .windowToolbar).scrollEdgeEffectStyle(.soft, for: .top)
-        } else {
+        } else if #available(macOS 15, *) {
             toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        } else {
+            // `toolbarBackgroundVisibility` is macOS 15+: on macOS 14 the toolbar keeps its backing.
+            self
         }
     }
 
@@ -185,9 +188,40 @@ extension View {
             toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
                 .scrollEdgeEffectStyle(.soft, for: .top)
                 .scrollEdgeEffectHidden(underHero, for: .top)
-        } else {
+        } else if #available(macOS 15, *) {
             toolbarBackgroundVisibility(underHero ? .hidden : .automatic, for: .windowToolbar)
+        } else {
+            // `toolbarBackgroundVisibility` is macOS 15+: on macOS 14 the toolbar keeps its backing.
+            self
         }
+    }
+    #endif
+
+    /// Removes the page title from the window toolbar. `ToolbarPlacement.title` is macOS 15+
+    /// (iOS 18+ / tvOS 18+); on older systems the title stays where the system puts it.
+    @ViewBuilder func toolbarWithoutTitle() -> some View {
+        #if os(macOS)
+        if #available(macOS 15, *) { toolbar(removing: .title) } else { self }
+        #elseif os(iOS)
+        if #available(iOS 18, *) { toolbar(removing: .title) } else { self }
+        #elseif os(tvOS)
+        if #available(tvOS 18, *) { toolbar(removing: .title) } else { self }
+        #else
+        self
+        #endif
+    }
+
+    #if os(macOS)
+    /// The hand cursor on hover. `pointerStyle` is macOS 15+; on macOS 14 the hover opacity
+    /// in `LiftBody` still applies, just without the cursor change.
+    @ViewBuilder func linkPointer() -> some View {
+        if #available(macOS 15, *) { pointerStyle(.link) } else { self }
+    }
+
+    /// Drag the window by its body, as the music mini player does. `WindowDragGesture` is
+    /// macOS 15+; on macOS 14 the window drags by its title bar instead.
+    @ViewBuilder func windowDragGesture() -> some View {
+        if #available(macOS 15, *) { gesture(WindowDragGesture()) } else { self }
     }
     #endif
 
@@ -628,7 +662,7 @@ struct LiftButtonStyle: ButtonStyle {
                 .onHover { hovering = $0 }
                 #endif
                 #if os(macOS)
-                .pointerStyle(.link)
+                .linkPointer()
                 #endif
         }
     }
