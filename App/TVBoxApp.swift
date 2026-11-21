@@ -155,29 +155,39 @@ import TVCore
         // The music mini player, floating over other apps at the bottom right; also in the Window menu.
         // The floating level, plain style, restoration behaviour and default placement are macOS 15+;
         // on macOS 14 it is a plain titled window at the system's default position.
-        if #available(macOS 15, *) {
-            Window(L10n.text("Mini Player"), id: MusicMacMiniPlayer.windowID) {
-                MusicMacMiniPlayer().environment(store).modifier(ThemeTint())
-            }
-            .windowStyle(.plain)
-            .windowLevel(.floating)
-            .windowResizability(.contentSize)
-            .restorationBehavior(.disabled)
-            .defaultWindowPlacement { content, context in
-                let size = content.sizeThatFits(.unspecified)
-                let screen = context.defaultDisplay.visibleRect
-                return WindowPlacement(CGPoint(x: screen.maxX - size.width - 20, y: screen.maxY - size.height - 20), size: size)
-            }
-            .keyboardShortcut("m", modifiers: [.command, .shift])
-        } else {
-            Window(L10n.text("Mini Player"), id: MusicMacMiniPlayer.windowID) {
-                MusicMacMiniPlayer().environment(store).modifier(ThemeTint())
-            }
-            .windowResizability(.contentSize)
-            .keyboardShortcut("m", modifiers: [.command, .shift])
+        // The 15-only modifiers live in MiniPlayerWindowStyle below: `if #available` is illegal
+        // inside a SceneBuilder (Xcode 26.6: "closure containing control flow statement cannot
+        // be used with result builder 'SceneBuilder'"), but legal in a SceneModifier's body.
+        Window(L10n.text("Mini Player"), id: MusicMacMiniPlayer.windowID) {
+            MusicMacMiniPlayer().environment(store).modifier(ThemeTint())
         }
+        .windowResizability(.contentSize)
+        .keyboardShortcut("m", modifiers: [.command, .shift])
+        .modifier(MiniPlayerWindowStyle())
         #endif
     }
+
+    #if os(macOS)
+    /// Applies the macOS 15-only mini-player window styling (floating level, plain style,
+    /// no restoration, bottom-right placement); on macOS 14 the window keeps the defaults.
+    private struct MiniPlayerWindowStyle: SceneModifier {
+        func body(content: Content) -> some Scene {
+            if #available(macOS 15, *) {
+                content
+                    .windowStyle(.plain)
+                    .windowLevel(.floating)
+                    .restorationBehavior(.disabled)
+                    .defaultWindowPlacement { content, context in
+                        let size = content.sizeThatFits(.unspecified)
+                        let screen = context.defaultDisplay.visibleRect
+                        return WindowPlacement(CGPoint(x: screen.maxX - size.width - 20, y: screen.maxY - size.height - 20), size: size)
+                    }
+            } else {
+                content
+            }
+        }
+    }
+    #endif
 }
 
 #if os(iOS)

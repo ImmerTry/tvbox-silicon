@@ -997,7 +997,7 @@ private final class EnhancementPipeline: EnhancementEngine, @unchecked Sendable 
         guard type.responds(to: selector),
               let method = class_getClassMethod(type, selector),
               let encoding = method_getTypeEncoding(method),
-              let signature = NSMethodSignature(signatureWithObjCTypes: encoding),
+              let signature = NSMethodSignature(objCTypes: encoding),
               signature.numberOfArguments == 3
         else { return nil }
         let returnType = String(cString: signature.getReturnType())
@@ -1018,8 +1018,11 @@ private final class EnhancementPipeline: EnhancementEngine, @unchecked Sendable 
 
     private static let interpolationLimit: (side: Int, pixels: Int)? = {
         guard #available(macOS 27, iOS 27, tvOS 27, *) else { return nil }
-        guard let side = queryInteger(#selector(VTLowLatencyFrameInterpolationConfiguration.__maximumDimension(forSpatialScaleFactor:)), argument: 1),
-              let pixels = queryInteger(#selector(VTLowLatencyFrameInterpolationConfiguration.__maximumPixelCount(forSpatialScaleFactor:)), argument: 1)
+        // Selectors built from strings, not #selector: the MacOSX26.5 SDK has no Swift
+        // wrapper for these members, so #selector cannot resolve them at compile time.
+        // `responds(to:)` in queryInteger still guards runtime absence.
+        guard let side = queryInteger(Selector("__maximumDimensionForSpatialScaleFactor:"), argument: 1),
+              let pixels = queryInteger(Selector("__maximumPixelCountForSpatialScaleFactor:"), argument: 1)
         else { return nil }
         return (side, pixels)
     }()
