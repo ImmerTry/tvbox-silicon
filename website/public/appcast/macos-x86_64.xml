@@ -4,12 +4,16 @@
         <title>Yingxia</title>
         <item>
             <title>1.8.28</title>
-            <pubDate>Mon, 23 Nov 2026 00:00:00 +0800</pubDate>
+            <pubDate>Mon, 23 Nov 2026 08:51:55 +0800</pubDate>
             <sparkle:version>66</sparkle:version>
             <sparkle:shortVersionString>1.8.28</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>x86_64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/ImmerTry/tvbox-silicon/releases/download/v1.8.28-macos14/yingxia-macos14-unsigned.zip" length="0" type="application/octet-stream" sparkle:edSignature="PLACEHOLDER"/>
+            <enclosure url="https://github.com/ImmerTry/tvbox-silicon/releases/download/v1.8.28-macos14/yingxia-macos14-unsigned.zip" length="234530880" type="application/octet-stream" sparkle:edSignature="WsJcX5ODw4cu457qB6v9uVUwsCJJov4XTODJWM3LRKrSXvPZEJMKDMqRSPvB8lX8u+9JYbnmXubGGZ3oSG3QBA=="/>
         </item>
     </channel>
 </rss>
+<!-- sparkle-signatures:
+edSignature: yj60+RCavOKf7rHwxqsJPxzJ+Igb7jBj+ygK8lWK15EQfx0qzHwjz5GOGYaaw0EwsxSo3QgX6u14QoemOn8oCA==
+length: 921
+-->
